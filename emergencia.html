@@ -1,0 +1,837 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Dashboard - Controle de Emergências</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+<style>
+:root{
+--bg:#0f1724;
+--card:#0b1220;
+--muted:#94a3b8;
+--accent:#1677ff;
+--accent-2:#22c1c3;
+--glass: rgba(255,255,255,0.03);
+--success:#2ecc71;
+--danger:#ef4444;
+--radius:12px;
+--soft-shadow: 0 6px 18px rgba(2,6,23,0.6);
+--glass-border: rgba(255,255,255,0.04);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,'Helvetica Neue',Arial;color:#e6eef8;background:linear-gradient(180deg,var(--bg),#071028) fixed;}
+.app{display:flex;min-height:100vh}
+.sidebar{width:280px;padding:22px;background:linear-gradient(180deg, rgba(8,18,35,0.9), rgba(4,10,20,0.9));border-right:1px solid rgba(255,255,255,0.03);}
+.brand{display:flex;gap:12px;align-items:center;margin-bottom:18px}
+.logo{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;color:white;font-weight:700}
+.brand h1{font-size:16px;margin:0}
+.brand p{margin:0;font-size:12px;color:var(--muted)}
+.nav{margin-top:14px}
+.nav button{display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;border-radius:10px;border:none;background:transparent;color:var(--muted);cursor:pointer;margin-bottom:8px}
+.nav button.active, .nav button:hover{background:var(--glass);color:white}
+.main{flex:1;padding:22px}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:18px}
+.card{grid-column:span 3;padding:14px;border-radius:var(--radius);background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));box-shadow:var(--soft-shadow);border:1px solid var(--glass-border)}
+.card.large{grid-column:span 6}
+.card.xlarge{grid-column:span 12}
+table{width:100%;border-collapse:collapse;color:#cfe7ff}
+thead th{background:linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:12px;text-align:left;font-size:12px;color:var(--muted)}
+tbody td{padding:12px;border-bottom:1px dashed rgba(255,255,255,0.03);font-size:13px}
+.tag{display:inline-block;padding:6px 8px;border-radius:8px;font-size:12px}
+.tag.open{background:rgba(34,193,195,0.12);color:var(--accent-2)}
+.tag.done{background:rgba(46,204,113,0.08);color:var(--success)}
+.modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);z-index:100}
+.modal.show{display:flex}
+.panel{width:600px;background:#081425;border-radius:12px;padding:18px;color:white}
+.form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.full{grid-column:span 3}
+input,select,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:white}
+.btn{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:white;padding:8px 12px;border:none;border-radius:10px;cursor:pointer}
+.btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.1);color:var(--muted)}
+.btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,0.3)}
+.spir-controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.spir-info{background:var(--glass);border:1px solid var(--glass-border);border-radius:8px}
+.spir-info ul{list-style-type:none;padding-left:0}
+.spir-info li{padding:4px 0;position:relative;padding-left:16px}
+.spir-info li:before{content:'•';color:var(--accent);font-weight:bold;position:absolute;left:0}
+#tblSPIR{margin-top:20px}
+#tblSPIR th{background:linear-gradient(90deg,rgba(34,193,195,0.1),rgba(22,119,255,0.1));color:var(--accent-2);font-weight:600}
+#tblSPIR td{border-bottom:1px solid rgba(255,255,255,0.05)}
+#tblSPIR tr:hover{background:rgba(255,255,255,0.02)}
+.tag.aguardando{background:rgba(255,193,7,0.15);color:#ffc107}
+.tag.execucao{background:rgba(34,193,195,0.15);color:var(--accent-2)}
+.am-suggestions{position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--glass-border);border-radius:8px;max-height:200px;overflow-y:auto;z-index:1000;display:none}
+.am-suggestion-item{padding:12px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.05)}
+.am-suggestion-item:hover{background:var(--glass)}
+.am-suggestion-item:last-child{border-bottom:none}
+.am-suggestion-main{font-weight:bold;color:var(--accent-2)}
+.am-suggestion-details{font-size:11px;color:var(--muted);margin-top:4px}
+.am-match{background:rgba(34,193,195,0.2);padding:2px 4px;border-radius:3px}
+.filters-card{margin-bottom:20px}
+.filters-container{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;align-items:end}
+.filter-group{display:flex;flex-direction:column;gap:5px}
+.filter-group label{font-size:12px;color:var(--muted);font-weight:500}
+.filter-group select{padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.02);color:white;font-size:13px}
+.filter-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.filtros-info{font-size:11px;color:var(--accent-2);font-weight:500}
+.filter-info-card{background:var(--card);border-radius:12px;padding:12px 20px;margin-bottom:20px;border:1px solid var(--glass-border);box-shadow:var(--soft-shadow)}
+.filter-status{color:var(--muted);font-size:14px;text-align:center;font-weight:500}
+.metric-info{font-size:12px;color:var(--muted);margin-top:4px}
+.metric-azul{color:#3B82F6 !important;font-weight:700}
+.metric-amarelo{color:#F59E0B !important;font-weight:700}
+.metric-verde{color:#10B981 !important;font-weight:700}
+.acoes-cell{text-align:center;white-space:nowrap}
+.btn-acao{border:none;background:none;cursor:pointer;padding:6px 8px;margin:0 2px;border-radius:6px;font-size:14px;transition:all 0.2s}
+.btn-acao:hover{transform:scale(1.1)}
+.btn-acao.editar:hover{background:rgba(59,130,246,0.1)}
+.btn-acao.excluir:hover{background:rgba(239,68,68,0.1)}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes slideOut{from{transform:translateX(0);opacity:1}to{transform:translateX(100%);opacity:0}}
+@media (max-width: 768px){.filters-container{grid-template-columns:1fr;gap:10px}.filter-actions{justify-content:center}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+<div class="brand"><div class="logo">EM</div><div><h1>Emergências</h1><p>Painel</p></div></div>
+<nav class="nav">
+<button class="active" onclick="showPanel('dashboard', this)">Painel</button>
+<button onclick="openModal()">Cadastrar Emergência</button>
+<button onclick="showPanel('lista', this)">Lista / Relatórios</button>
+<button onclick="showPanel('spir', this)">Atualizações SPIR</button>
+<button onclick="buscarDadosSPIR()">🔄 Atualizar SPIR</button>
+</nav>
+</aside>
+
+<main class="main">
+<div id="dashboard" class="grid">
+<div class="card xlarge filters-card">
+<h3>🔍 Filtros</h3>
+<div class="filters-container">
+<div class="filter-group">
+<label>📅 Filtrar por Mês:</label>
+<select id="filtro-mes" onchange="aplicarFiltros()">
+<option value="">Todos os meses</option>
+</select>
+</div>
+<div class="filter-group">
+<label>📋 Filtrar por Evento:</label>
+<select id="filtro-evento" onchange="aplicarFiltros()">
+<option value="">Todos os eventos</option>
+</select>
+</div>
+<div class="filter-group">
+<label>🏘️ Filtrar por Cidade:</label>
+<select id="filtro-cidade" onchange="aplicarFiltros()">
+<option value="">Todas as cidades</option>
+</select>
+</div>
+<div class="filter-group">
+<label>🏷️ Filtrar por Status:</label>
+<select id="filtro-status" onchange="aplicarFiltros()">
+<option value="">Todos os status</option>
+<option value="Aberta">Aberta</option>
+<option value="Em Análise">Em Análise</option>
+<option value="Concluída">Concluída</option>
+</select>
+</div>
+<div class="filter-actions">
+<button onclick="limparFiltros()" class="btn ghost">🗑️ Limpar</button>
+<span id="filtros-info" class="filtros-info"></span>
+</div>
+</div>
+</div>
+<div class="card"><h3>Total de emergências</h3><div id="metric-total" class="metric metric-azul">0</div><div id="metric-total-info" class="metric-info"></div></div>
+<div class="card"><h3>Horas totais</h3><div id="metric-horas" class="metric metric-amarelo">0</div><div id="metric-horas-info" class="metric-info"></div></div>
+<div class="card"><h3>Valor total</h3><div id="metric-valor" class="metric metric-verde">R$ 0,00</div><div id="metric-valor-info" class="metric-info"></div></div>
+<div class="card xlarge"><h3>Últimas Emergências</h3><table id="tbl"><thead><tr><th>Evento</th><th>AM</th><th>Equipe</th><th>Data</th><th>Cidade</th><th>Horas</th><th>Valor</th><th>Status</th></tr></thead><tbody></tbody></table></div>
+</div>
+
+<div id="lista" style="display:none">
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+  <h3>Lista de Emergências</h3>
+  <button onclick="exportarListaParaExcel()" class="btn" style="background: linear-gradient(90deg, #11752f, #2ecc71);">
+    📊 Exportar para Excel
+  </button>
+</div>
+<table id="tblList"><thead><tr><th>Evento</th><th>AM</th><th>Equipe</th><th>Data</th><th>Cidade</th><th>Horas</th><th>Valor</th><th>Status</th><th>Ações</th></tr></thead><tbody></tbody></table>
+</div>
+
+<div id="spir" style="display:none">
+<h3>Atualizações do SPIR (Emergências)</h3>
+<div class="spir-controls" style="margin-bottom: 20px;">
+<button onclick="buscarDadosSPIR()" class="btn">🔄 Buscar Dados SPIR</button>
+<button onclick="abrirGuiaSpir()" class="btn ghost">📖 Guia de Atualização</button>
+<button onclick="executarScriptSpir()" class="btn" style="background: var(--accent-2);">🚀 Executar Script Manual</button>
+<button onclick="exportarSPIR()" class="btn ghost">📊 Exportar</button>
+<span id="spir-status" style="margin-left: 15px; font-weight: 500;"></span>
+</div>
+<div class="spir-info" style="background: var(--glass); padding: 12px; border-radius: 8px; margin-bottom: 20px;">
+<p><strong>Configuração atual:</strong></p>
+<ul style="margin: 8px 0; padding-left: 20px; color: var(--muted);">
+<li>Estação: OM Americana</li>
+<li>Período: Últimos 15 dias</li>
+<li>Status: Aguardando Execução, Execução, Concluída, Aguardando Análise</li>
+</ul>
+</div>
+<table id="tblSPIR">
+<thead>
+<tr>
+<th>Evento (OS)</th>
+<th>Número AM</th>
+<th>Município</th>
+<th>Data Criação</th>
+<th>Materiais Necessários</th>
+<th>Status</th>
+<th>Última Atualização</th>
+</tr>
+</thead>
+<tbody id="tbodySPIR">
+<tr>
+<td colspan="7" style="text-align: center; color: var(--muted); padding: 40px;">
+📡 Clique em "Buscar Dados SPIR" para carregar as informações
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</main>
+</div>
+
+<div class="modal" id="modal">
+<div class="panel">
+<h3>Cadastrar Emergência</h3>
+<form id="formModal">
+<div class="form-grid">
+<div><label>Evento</label><input id="f_evento" required></div>
+<div style="position: relative;">
+  <label>AM</label>
+  <input id="f_am" required autocomplete="off" placeholder="Digite o número AM...">
+  <div id="am-suggestions" class="am-suggestions"></div>
+  <small id="am-status" style="color: var(--muted); font-size: 11px; display: block; margin-top: 4px;"></small>
+</div>
+<div><label>Equipe</label><input id="f_equipe" required></div>
+<div><label>Data</label><input id="f_data" type="date" required></div>
+<div><label>Cidade</label><input id="f_cidade" required></div>
+<div><label>Hora Início</label><input id="f_inicio" type="time" required></div>
+<div><label>Hora Fim</label><input id="f_fim" type="time" required></div>
+<div><label>Intervalo</label><input id="f_intervalo" type="time" value="00:00"></div>
+<div><label>Qtd. Equipe LM</label><input id="f_qtdEquipeLM" type="number" step="1" value="0"></div>
+<div><label>Qtd. Equipe LV</label><input id="f_qtdEquipeLV" type="number" step="1" value="0"></div>
+<div class="full"><label>Atividade / Observação</label><textarea id="f_obs"></textarea></div>
+<div><label>Status</label><select id="f_status"><option>Aberta</option><option>Em Análise</option><option>Concluída</option></select></div>
+<div><label>Horas Trabalhadas</label><input id="f_horas" readonly></div>
+<div><label>Horas Decimais</label><input id="f_dec" readonly></div>
+<div><label>Valor (R$)</label><input id="f_valor" readonly></div>
+<div><label>Valor/Hora LM</label><input id="f_valorHoraLM" readonly></div>
+<div><label>Valor/Hora LV</label><input id="f_valorHoraLV" readonly></div>
+<div><label>Total LM</label><input id="f_totalLM" readonly></div>
+<div><label>Total LV</label><input id="f_totalLV" readonly></div>
+<div><label>Total Geral</label><input id="f_totalGeral" readonly></div>
+</div>
+<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+<button type="button" class="btn ghost" onclick="closeModal()">Cancelar</button>
+<button type="submit" class="btn">Salvar</button>
+</div>
+</form>
+</div>
+</div>
+
+<script>
+let dataStore = JSON.parse(localStorage.getItem('emergencias_v2')) || [];
+let spirData = JSON.parse(localStorage.getItem('spir_data')) || [];
+let editIndex = null;
+
+function showPanel(id, btn){
+  document.getElementById('dashboard').style.display = id==='dashboard'?'grid':'none';
+  document.getElementById('lista').style.display = id==='lista'?'block':'none';
+  document.getElementById('spir').style.display = id==='spir'?'block':'none';
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  renderTable();
+  if(id === 'spir') renderSPIRTable();
+}
+
+function buscarDadosSPIR(){
+  const statusEl = document.getElementById('spir-status');
+  
+  // Modifica o texto e injeta o novo botão verde de ação imediata ao lado da mensagem
+  statusEl.innerHTML = `
+    <span style="color: #ffc107; font-weight: 500; margin-right: 15px;">
+      🔒 O navegador abriu! Faça o login, selecione a empresa Paulista e quando estiver na tela do Monitor AM, clique ao lado:
+    </span>
+    <button onclick="dispararFiltrosEAutomação()" class="btn" style="background: #2ecc71; padding: 4px 10px; font-size: 12px; font-weight: bold;">
+      ⚡ COMEÇAR FILTRO AGORA
+    </button>
+  `;
+  
+  console.log('📡 Solicitando ao Flask a abertura limpa do navegador Chrome...');
+  
+  fetch('/abrir-navegador')
+    .then(response => response.json())
+    .then(retorno => {
+       if(!retorno.sucesso) {
+         mostrarNotificacao('❌ Erro ao abrir o navegador: ' + retorno.erro, 'error');
+       }
+    })
+    .catch(err => console.error('Erro na rota de abertura:', err));
+}
+
+function dispararFiltrosEAutomação() {
+  const statusEl = document.getElementById('spir-status');
+  statusEl.textContent = '🤖 Executando filtros, scroll e extração de dados no portal (Aguarde)...';
+  statusEl.style.color = 'var(--accent-2)';
+  
+  console.log('📡 Enviando gatilho manual. O robô vai agir imediatamente...');
+  
+  fetch('/executar-filtros')
+    .then(response => response.json())
+    .then(retorno => {
+      if (retorno.sucesso && retorno.emergencias) {
+          spirData = retorno.emergencias;
+          localStorage.setItem('spir_data', JSON.stringify(spirData));
+          renderSPIRTable();
+          
+          statusEl.textContent = `✅ ${spirData.length} emergências atualizadas via clique manual - ${retorno.timestamp}`;
+          statusEl.style.color = 'var(--success)';
+          
+          mostrarNotificacao(`🎉 Concluído! ${spirData.length} ordens colhidas com sucesso!`, 'success');
+      } else {
+          throw new Error(retorno.erro || 'Erro no processamento dos filtros');
+      }
+    })
+    .catch(error => {
+      console.error('❌ Falha na execução imediata:', error);
+      statusEl.innerHTML = `
+        <span style="color: var(--danger); font-weight: bold; margin-right: 15px;">❌ Erro: ${error.message}</span>
+        <button onclick="dispararFiltrosEAutomação()" class="btn" style="background: #e67e22; padding: 4px 10px; font-size: 12px;">🔄 Tentar Novamente</button>
+      `;
+    });
+}
+
+function usarDadosExemplo() {
+  if (spirData && spirData.length > 0) return;
+  
+  const dadosExemplo = [
+    {
+      evento: 'OS 1413101648',
+      am: '11189828',
+      municipio: 'Americana',
+      data_criacao: '30/05/2026',
+      materiais: 'Transformador 15kVA, Cabos 4x25mm²',
+      status: 'Aguardando Análise OM',
+      ultima_atualizacao: new Date().toLocaleString()
+    },
+    {
+      evento: 'OS 1413101914',
+      am: '11189999',
+      municipio: 'Nova Odessa',
+      data_criacao: '30/05/2026',
+      materiais: 'Poste concreto 12m, Chaves fusíveis 15kV',
+      status: 'Aguardando Execução',
+      ultima_atualizacao: new Date().toLocaleString()
+    }
+  ];
+  
+  spirData = dadosExemplo;
+  localStorage.setItem('spir_data', JSON.stringify(spirData));
+  renderSPIRTable();
+}
+
+function renderSPIRTable(){
+  const tbody = document.getElementById('tbodySPIR');
+  if(!spirData || spirData.length === 0){
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--muted); padding: 40px;">📡 Nenhum dado do SPIR carregado</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = '';
+  spirData.forEach(item => {
+    const evento = item.evento || item.numero_evento || item.ocorrencia || '';
+    const numero = item.am || item.numero_am || item.numero || '';
+    const municipio = item.municipio || '';
+    const data = item.data_criacao || item.inicio || '';
+    const materiais = item.materiais || item.equipamento || '';
+    const status = item.status || 'Pendente';
+    const atualizacao = item.ultima_atualizacao || item.previsao || '';
+    
+    const row = `
+      <tr>
+        <td><strong>${evento}</strong></td>
+        <td>${numero}</td>
+        <td>📍 ${municipio}</td>
+        <td>${data}</td>
+        <td title="${materiais}">${truncateText(materiais, 50)}</td>
+        <td><span class="tag ${getStatusClass(status)}">${status}</span></td>
+        <td style="font-size: 12px; color: var(--muted);">${atualizacao}</td>
+      </tr>
+    `;
+    tbody.insertAdjacentHTML('beforeend', row);
+  });
+}
+
+function truncateText(text, maxLength) {
+  if (!text || text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + '...';
+}
+
+function getStatusClass(status){
+  if(!status) return '';
+  const s = status.toLowerCase();
+  if(s.includes('conclu') || s.includes('análise')) return 'done';
+  if(s.includes('execu') || s.includes('aguard')) return 'aguardando';
+  return '';
+}
+
+function exportarSPIR(){
+  if(!spirData || spirData.length === 0){
+    alert('Nenhum dado do SPIR para exportar');
+    return;
+  }
+  
+  const dados = spirData.map(item => ({
+    'Nº Evento': item.evento || item.numero_evento || '',
+    'Número AM': item.am || item.numero_am || '',
+    'Município': item.municipio || '',
+    'Data/Início': item.data_criacao || '',
+    'Equipamento/Materiais': item.materiais || '',
+    'Status': item.status || '',
+    'Previsão/Atualização': item.ultima_atualizacao || ''
+  }));
+  
+  const csv = converterParaCSV(dados);
+  baixarArquivo(csv, `spir_dados_${new Date().toISOString().split('T')[0]}.csv`, 'text/csv');
+}
+
+function converterParaCSV(dados){
+  if(dados.length === 0) return '';
+  const cabecalhos = Object.keys(dados[0]);
+  return [
+    cabecalhos.join(','),
+    ...dados.map(row => cabecalhos.map(header => `"${row[header] || ''}"`).join(','))
+  ].join('\n');
+}
+
+function baixarArquivo(conteudo, nomeArquivo, tipo){
+  const blob = new Blob([conteudo], { type: tipo });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nomeArquivo;
+  a.click();
+  window.URL.revokeObjectURL(url);
+}
+
+function openModal(){editIndex=null;document.getElementById('modal').classList.add('show');resetForm();configurarEventosAM();}
+function closeModal(){document.getElementById('modal').classList.remove('show');fecharSugestoesAM();}
+
+function configurarEventosAM(){
+  const campoAM = document.getElementById('f_am');
+  campoAM.addEventListener('input', buscarPorAM);
+  campoAM.addEventListener('focus', mostrarSugestoesAM);
+  campoAM.addEventListener('blur', ocultarSugestoesAM);
+}
+
+function buscarPorAM(event) {
+  const am = event.target.value.trim();
+  const statusDiv = document.getElementById('am-status');
+  
+  if(!am || am.length < 3) {
+    fecharSugestoesAM();
+    statusDiv.textContent = '';
+    return;
+  }
+  
+  const dadosEncontrados = encontrarDadosPorAM(am);
+  
+  if(dadosEncontrados.length > 0) {
+    mostrarSugestoes(dadosEncontrados, am);
+    statusDiv.textContent = `${dadosEncontrados.length} registro(s) encontrado(s)`;
+    statusDiv.style.color = 'var(--accent-2)';
+    
+    const matchExato = dadosEncontrados.find(item => {
+      const itemAm = item.am || item.numero_am || '';
+      const itemEv = item.evento || item.numero_evento || '';
+      return itemAm === am || itemEv === am;
+    });
+    
+    if(matchExato && dadosEncontrados.length === 1) {
+      preencherFormularioComDadosSPIR(matchExato);
+      statusDiv.textContent = '✅ Dados preenchidos automaticamente';
+      statusDiv.style.color = 'var(--success)';
+    }
+  } else {
+    fecharSugestoesAM();
+    statusDiv.textContent = 'Nenhum registro encontrado no SPIR';
+    statusDiv.style.color = 'var(--muted)';
+  }
+}
+
+function encontrarDadosPorAM(am) {
+  if(!spirData || spirData.length === 0) return [];
+  const amLower = am.toLowerCase();
+  
+  return spirData.filter(item => {
+    const itemAm = (item.am || item.numero_am || '').toLowerCase();
+    const itemEv = (item.evento || item.numero_evento || '').toLowerCase();
+    const itemMu = (item.municipio || '').toLowerCase();
+    return itemAm.includes(amLower) || itemEv.includes(amLower) || itemMu.includes(amLower);
+  });
+}
+
+function mostrarSugestoes(dados, termoBusca) {
+  const suggestionsDiv = document.getElementById('am-suggestions');
+  suggestionsDiv.innerHTML = '';
+  
+  dados.forEach((item, index) => {
+    const div = document.createElement('div');
+    div.className = 'am-suggestion-item';
+    
+    const valAm = item.am || item.numero_am || 'S/AM';
+    const valEv = item.evento || item.numero_evento || 'S/OS';
+    
+    const numeroAM = destacarTexto(valAm, termoBusca);
+    const evento = destacarTexto(valEv, termoBusca);
+    
+    div.innerHTML = `
+      <div class="am-suggestion-main">${numeroAM} (${evento})</div>
+      <div class="am-suggestion-details">
+        📍 ${item.municipio || 'N/A'} • 📅 ${item.data_criacao || 'N/A'} • 🏷️ ${item.status || 'N/A'}
+      </div>
+    `;
+    
+    div.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      selecionarSugestao(item);
+    });
+    suggestionsDiv.appendChild(div);
+  });
+  suggestionsDiv.style.display = 'block';
+}
+
+function destacarTexto(texto, termo) {
+  if(!texto || !termo) return texto;
+  const regex = new RegExp(`(${termo})`, 'gi');
+  return texto.replace(regex, '<span class="am-match">$1</span>');
+}
+
+function preencherFormularioComDadosSPIR(dadosSPIR) {
+  document.getElementById('f_evento').value = dadosSPIR.evento || dadosSPIR.numero_evento || '';
+  document.getElementById('f_cidade').value = dadosSPIR.municipio || '';
+  
+  let dataCriacao = dadosSPIR.data_criacao || '';
+  if(dataCriacao.includes('/')) {
+    const partes = dataCriacao.split('/');
+    if(partes.length === 3) {
+      dataCriacao = `${partes[2]}-${partes[1].padStart(2,'0')}-${partes[0].padStart(2,'0')}`;
+    }
+  }
+  document.getElementById('f_data').value = dataCriacao;
+  
+  const materiaisInfo = dadosSPIR.materiais || dadosSPIR.equipamento || '';
+  if(materiaisInfo) {
+    document.getElementById('f_obs').value = `MATERIAIS SPIR: ${materiaisInfo}\nSTATUS: ${dadosSPIR.status || ''}`;
+  }
+}
+
+function selecionarSugestao(dadosSPIR) {
+  document.getElementById('f_am').value = dadosSPIR.am || dadosSPIR.numero_am || '';
+  preencherFormularioComDadosSPIR(dadosSPIR);
+  fecharSugestoesAM();
+  document.getElementById('am-status').textContent = '✅ Dados do SPIR carregados';
+  document.getElementById('am-status').style.color = 'var(--success)';
+}
+
+function mostrarSugestoesAM() {
+  const am = document.getElementById('f_am').value.trim();
+  if(am.length >= 3) buscarPorAM({target: {value: am}});
+}
+
+function ocultarSugestoesAM() {
+  setTimeout(() => fecharSugestoesAM(), 200);
+}
+
+function fecharSugestoesAM() {
+  document.getElementById('am-suggestions').style.display = 'none';
+}
+
+function abrirGuiaSpir() {
+  alert(`🚀 COMO ATUALIZAR DADOS DO SPIR\n\n1️⃣ Certifique-se de que o servidor local Flask (app.py) está ligado.\n2️⃣ Clique em "Buscar Dados SPIR".\n3️⃣ O Selenium abrirá de fundo e trará as atualizações automaticamente!`);
+}
+
+function executarScriptSpir() {
+  alert(`📋 COMANDO PARA REINICIAR O SERVIDOR LOCAL DE AUTOMAÇÃO:\n\ncd "c:\\Users\\robso\\Desktop\\acompamento Emergencia"\n.\\.venv\\Scripts\\activate.ps1\npython app.py`);
+}
+
+function calcHoras(inicio,fim,intervalo){if(!inicio||!fim)return{horas:0,dec:0};const[h1,m1]=inicio.split(':').map(Number);const[h2,m2]=fim.split(':').map(Number);const[hi,mi]=(intervalo||'00:00').split(':').map(Number);let total=(h2+m2/60)-(h1+m1/60)-(hi+mi/60);if(total<0)total+=24;const dec=Number(total.toFixed(2));const hh=Math.floor(total)+':'+String(Math.round((total%1)*60)).padStart(2,'0');return{horas:hh,dec};}
+
+function updateCalc(){
+  const inicio=f_inicio.value,fim=f_fim.value,intervalo=f_intervalo.value,qtdEquipeLM=parseFloat(f_qtdEquipeLM.value)||0,qtdEquipeLV=parseFloat(f_qtdEquipeLV.value)||0;
+  const {horas,dec}=calcHoras(inicio,fim,intervalo);
+  f_horas.value=horas;
+  f_dec.value=dec;
+  
+  const lm = 1, lv = 1, p = 1;
+  const valorHoraLM = (706.50 * p).toFixed(2);
+  const valorHoraLV = (677.86 * p).toFixed(2);
+  
+  const totalLM = (valorHoraLM * lm * qtdEquipeLM * dec).toFixed(2);
+  const totalLV = (valorHoraLV * lv * qtdEquipeLV * dec).toFixed(2);
+  const totalGeral = (parseFloat(totalLM) + parseFloat(totalLV)).toFixed(2);
+  
+  document.getElementById('f_valorHoraLM').value = 'R$ ' + valorHoraLM;
+  document.getElementById('f_valorHoraLV').value = 'R$ ' + valorHoraLV;
+  document.getElementById('f_totalLM').value = 'R$ ' + totalLM;
+  document.getElementById('f_totalLV').value = 'R$ ' + totalLV;
+  document.getElementById('f_totalGeral').value = 'R$ ' + totalGeral;
+  f_valor.value='R$ '+totalGeral;
+}
+
+['f_inicio','f_fim','f_intervalo','f_qtdEquipeLM','f_qtdEquipeLV'].forEach(id=>document.getElementById(id).addEventListener('input',updateCalc));
+
+function resetForm(){formModal.reset();f_intervalo.value='00:00';f_qtdEquipeLM.value='0';f_qtdEquipeLV.value='0';updateCalc();}
+
+formModal.addEventListener('submit',e=>{
+  e.preventDefault();
+  const obj={evento:f_evento.value,am:f_am.value,equipe:f_equipe.value,data:f_data.value,cidade:f_cidade.value,inicio:f_inicio.value,fim:f_fim.value,intervalo:f_intervalo.value||'00:00',qtdEquipeLM:parseFloat(f_qtdEquipeLM.value)||0,qtdEquipeLV:parseFloat(f_qtdEquipeLV.value)||0,obs:f_obs.value,status:f_status.value};
+  const c=calcHoras(obj.inicio,obj.fim,obj.intervalo);obj.horas=c.horas;obj.dec=c.dec;
+  
+  const totalLM = (706.50 * obj.qtdEquipeLM * obj.dec);
+  const totalLV = (677.86 * obj.qtdEquipeLV * obj.dec);
+  obj.valor = (totalLM + totalLV).toFixed(2);
+  
+  if(modoEdicao && indiceEdicao !== -1){
+    dataStore[indiceEdicao] = obj;
+    modoEdicao = false;
+    indiceEdicao = -1;
+    document.querySelector('button[type="submit"]').textContent = 'Salvar';
+    document.querySelector('button[type="submit"]').style.background = '';
+    mostrarNotificacao('✅ Emergência atualizada!', 'success');
+  } else {
+    dataStore.unshift(obj);
+    mostrarNotificacao('✅ Emergência cadastrada!', 'success');
+  }
+  
+  persist();closeModal();renderTable();renderMetrics();
+});
+
+function renderMetrics(){
+  const dadosFiltrados = obterDadosFiltrados();
+  document.getElementById('metric-total').textContent=dadosFiltrados.length;
+  const totalHoras=dadosFiltrados.reduce((s,it)=>s+Number(it.dec||0),0);
+  const totalValor=dadosFiltrados.reduce((s,it)=>s+Number(it.valor||0),0);
+  document.getElementById('metric-horas').textContent=totalHoras.toFixed(2);
+  document.getElementById('metric-valor').textContent=formatarMoeda(totalValor);
+  atualizarInfoMetricas(dadosFiltrados);
+}
+
+let modoEdicao = false;
+let indiceEdicao = -1;
+
+function formatarMoeda(valor) {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
+}
+
+function editarEmergencia(index) {
+  const item = dataStore[index];
+  if(!item) return;
+  modoEdicao = true;
+  indiceEdicao = index;
+  openModal();
+  setTimeout(() => {
+    document.getElementById('f_evento').value = item.evento || '';
+    document.getElementById('f_am').value = item.am || '';
+    document.getElementById('f_equipe').value = item.equipe || '';
+    document.getElementById('f_data').value = item.data || '';
+    document.getElementById('f_cidade').value = item.cidade || '';
+    document.getElementById('f_inicio').value = item.inicio || '';
+    document.getElementById('f_fim').value = item.fim || '';
+    document.getElementById('f_intervalo').value = item.intervalo || '00:00';
+    document.getElementById('f_qtdEquipeLM').value = item.qtdEquipeLM || '0';
+    document.getElementById('f_qtdEquipeLV').value = item.qtdEquipeLV || '0';
+    document.getElementById('f_obs').value = item.obs || '';
+    document.getElementById('f_status').value = item.status || 'Aberta';
+    
+    const btn = document.querySelector('button[type="submit"]');
+    btn.textContent = '✏️ Atualizar Emergência';
+    btn.style.background = 'var(--accent-2)';
+  }, 100);
+}
+
+function excluirEmergencia(index) {
+  if(confirm('Deseja excluir esta emergência?')) {
+    dataStore.splice(index, 1);
+    persist();renderTable();renderMetrics();
+  }
+}
+
+function mostrarNotificacao(mensagem, tipo = 'info') {
+  const notif = document.createElement('div');
+  notif.className = `notificacao ${tipo}`;
+  notif.textContent = mensagem;
+  notif.style.cssText = `position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 8px; color: white; font-weight: 500; z-index: 1000; animation: slideIn 0.3s ease; max-width: 300px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);`;
+  notif.style.background = tipo === 'success' ? '#22c55e' : (tipo === 'error' ? '#ef4444' : '#3b82f6');
+  document.body.appendChild(notif);
+  setTimeout(() => { notif.remove(); }, 3000);
+}
+
+let filtrosAtivos = { mes: '', evento: '', cidade: '', status: '' };
+
+function inicializarFiltros() {
+  const meses = [...new Set(dataStore.map(item => item.data ? new Date(item.data + 'T00:00:00').toLocaleDateString('pt-BR', {year: 'numeric', month: 'long'}) : null).filter(Boolean))].sort();
+  const selectMes = document.getElementById('filtro-mes');
+  selectMes.innerHTML = '<option value="">Todos os meses</option>';
+  meses.forEach(mes => { selectMes.innerHTML += `<option value="${mes}">${mes}</option>`; });
+  
+  const eventos = [...new Set(dataStore.map(item => item.evento).filter(Boolean))].sort();
+  const selectEvento = document.getElementById('filtro-evento');
+  selectEvento.innerHTML = '<option value="">Todos os eventos</option>';
+  eventos.forEach(evento => { selectEvento.innerHTML += `<option value="${evento}">${evento}</option>`; });
+  
+  const cidades = [...new Set(dataStore.map(item => item.cidade).filter(Boolean))].sort();
+  const selectCidade = document.getElementById('filtro-cidade');
+  selectCidade.innerHTML = '<option value="">Todas as cidades</option>';
+  cidades.forEach(cidade => { selectCidade.innerHTML += `<option value="${cidade}">${cidade}</option>`; });
+}
+
+function aplicarFiltros() {
+  filtrosAtivos.mes = document.getElementById('filtro-mes').value;
+  filtrosAtivos.evento = document.getElementById('filtro-evento').value;
+  filtrosAtivos.cidade = document.getElementById('filtro-cidade').value;
+  filtrosAtivos.status = document.getElementById('filtro-status').value;
+  renderTable();renderMetrics();atualizarInfoFiltros();
+}
+
+function obterDadosFiltrados() {
+  return dataStore.filter(item => {
+    if(filtrosAtivos.mes) {
+      const itemMes = item.data ? new Date(item.data + 'T00:00:00').toLocaleDateString('pt-BR', {year: 'numeric', month: 'long'}) : '';
+      if(itemMes !== filtrosAtivos.mes) return false;
+    }
+    if(filtrosAtivos.evento && item.evento !== filtrosAtivos.evento) return false;
+    if(filtrosAtivos.cidade && item.cidade !== filtrosAtivos.cidade) return false;
+    if(filtrosAtivos.status && item.status !== filtrosAtivos.status) return false;
+    return true;
+  });
+}
+
+function limparFiltros() {
+  document.getElementById('filtro-mes').value = '';
+  document.getElementById('filtro-evento').value = '';
+  document.getElementById('filtro-cidade').value = '';
+  document.getElementById('filtro-status').value = '';
+  filtrosAtivos = { mes: '', evento: '', cidade: '', status: '' };
+  renderTable();renderMetrics();
+  document.getElementById('filtros-info').textContent = '';
+}
+
+function atualizarInfoFiltros() {
+  const f = [];
+  if(filtrosAtivos.mes) f.push(`📅 ${filtrosAtivos.mes}`);
+  if(filtrosAtivos.evento) f.push(`📋 ${filtrosAtivos.evento}`);
+  if(filtrosAtivos.cidade) f.push(`🏘️ ${filtrosAtivos.cidade}`);
+  if(filtrosAtivos.status) f.push(`🏷️ ${filtrosAtivos.status}`);
+  document.getElementById('filtros-info').textContent = f.length > 0 ? `Filtros: ${f.join(' • ')}` : 'Exibindo todos os registros';
+}
+
+function atualizarInfoMetricas(dadosFiltrados) {
+  const totalGeral = dataStore.length;
+  const totalFiltrado = dadosFiltrados.length;
+  
+  const infoTotal = document.getElementById('metric-total-info');
+  infoTotal.textContent = totalFiltrado < totalGeral ? `de ${totalGeral} total` : (totalGeral === 1 ? 'emergência' : 'emergências');
+  infoTotal.style.color = totalFiltrado < totalGeral ? 'var(--accent-2)' : 'var(--muted)';
+  
+  const infoHoras = document.getElementById('metric-horas-info');
+  const horasGeral = dataStore.reduce((s,it)=>s+Number(it.dec||0),0);
+  infoHoras.textContent = totalFiltrado < totalGeral ? `de ${horasGeral.toFixed(2)}h total` : 'horas trabalhadas';
+  infoHoras.style.color = totalFiltrado < totalGeral ? 'var(--accent-2)' : 'var(--muted)';
+  
+  const infoValor = document.getElementById('metric-valor-info');
+  const valorGeral = dataStore.reduce((s,it)=>s+Number(it.valor||0),0);
+  infoValor.textContent = totalFiltrado < totalGeral ? `de ${formatarMoeda(valorGeral)} total` : 'valor acumulado';
+  infoValor.style.color = totalFiltrado < totalGeral ? 'var(--accent-2)' : 'var(--muted)';
+}
+
+function renderTable(){
+  const dadosFiltrados = obterDadosFiltrados();
+  const tbody=document.querySelector('#tbl tbody');
+  const tbody2=document.querySelector('#tblList tbody');
+  tbody.innerHTML='';tbody2.innerHTML='';
+  
+  dadosFiltrados.forEach(it=>{
+    const row=`<tr><td>${it.evento||''}</td><td>${it.am||''}</td><td>${it.equipe}</td><td>${it.data}</td><td>${it.cidade}</td><td>${it.horas}</td><td>${formatarMoeda(Number(it.valor||0))}</td><td>${it.status}</td></tr>`;
+    tbody.insertAdjacentHTML('beforeend',row);
+  });
+  
+  dataStore.forEach((it,idx)=>{
+    const row=`<tr>
+      <td>${it.evento||''}</td><td>${it.am||''}</td><td>${it.equipe}</td><td>${it.data}</td><td>${it.cidade}</td><td>${it.horas}</td><td>${formatarMoeda(Number(it.valor||0))}</td><td>${it.status}</td>
+      <td class="acoes-cell">
+        <button onclick="editarEmergencia(${idx})" class="btn-acao editar" title="Editar">✏️</button>
+        <button onclick="excluirEmergencia(${idx})" class="btn-acao excluir" title="Excluir">🗑️</button>
+      </td>
+    </tr>`;
+    tbody2.insertAdjacentHTML('beforeend',row);
+  });
+}
+
+function persist(){
+  localStorage.setItem('emergencias_v2',JSON.stringify(dataStore));
+  inicializarFiltros();
+}
+
+if (spirData && spirData.length > 0) {
+  renderSPIRTable();
+  document.getElementById('spir-status').textContent = `✅ ${spirData.length} registros carregados do histórico`;
+}
+renderTable();renderMetrics();inicializarFiltros();
+
+// Adicione esta função em qualquer lugar livre dentro das suas tags <script>
+function exportarListaParaExcel() {
+  if (!dataStore || dataStore.length === 0) {
+    mostrarNotificacao('⚠️ Não há registros cadastrados na lista para exportar.', 'error');
+    return;
+  }
+
+  console.log('📊 Preparando dados da Lista para exportação Excel...');
+
+  // Mapeia e organiza as colunas de forma limpa para a planilha
+  const dadosFormatados = dataStore.map(item => ({
+    'Evento (OS)': item.evento || 'N/A',
+    'Número AM': item.am || 'N/A',
+    'Equipe': item.equipe || '',
+    'Data': item.data || '',
+    'Cidade': item.cidade || '',
+    'Horas Trabalhadas': item.horas || '00:00',
+    'Horas Decimais': item.dec || 0,
+    'Valor Total (R$)': Number(item.valor || 0),
+    'Status': item.status || 'Aberta',
+    'Observações': item.obs || ''
+  }));
+
+  // Cria a planilha usando a biblioteca SheetJS (xlsx)
+  const planilha = XLSX.utils.json_to_sheet(dadosFormatados);
+  const livro = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(livro, planilha, "Emergências");
+
+  // Ajusta a largura das colunas dinamicamente para não cortar os textos
+  const larguras = Object.keys(dadosFormatados[0]).map(key => ({
+    wch: Math.max(key.length + 3, 12)
+  }));
+  planilha['!cols'] = larguras;
+
+  // Realiza o download imediato do arquivo no navegador
+  const dataHoje = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(livro, `lista_emergencias_${dataHoje}.xlsx`);
+  
+  mostrarNotificacao('✅ Planilha gerada e baixada com sucesso!', 'success');
+}
+</script>
+</body>
+</html>
